@@ -1,26 +1,28 @@
 #include <algorithm>
 #include <ranges>
 #include <list>
-#include <stdexcept>
-#include <cassert>
+#include <new>
 
 #include <unistd.h>
 
 namespace bb {
+enum class flag { UNUSED, USED };
+
 // a header block
 struct alloc_t {
     void* addr_{};
     size_t size_{};
-    int magic_{};
+    flag flag_{};
 };
 
-class dealloc_error : std::runtime_error {
+class bad_dealloc : std::exception {
 public:
-    dealloc_error(const char* what) :
-        std::runtime_error(what) {}
+    bad_dealloc() { }
+    const char* what() const noexcept override {
+        return "bb::bad_dealloc: invalid pointer or double free";
+    }
 };
 
-static constexpr int MAGIC_V{69420};
 static std::list<alloc_t*> blk_used{};
 static std::list<alloc_t*> blk_free{};
 
@@ -32,7 +34,7 @@ static T* req_blk(size_t sz) {
     if (it == blk_free.end())
         return nullptr;
 
-    (*it)->magic_ = bb::MAGIC_V; // validate magic again
+    (*it)->flag_ = bb::flag::USED; // validate magic again
     blk_used.push_back(*it); // move from free to used
     blk_free.erase(it);
 
@@ -41,17 +43,15 @@ static T* req_blk(size_t sz) {
 
 template<typename T>
 static T* req_space(size_t sz) {
-    // confirm our request to increment the heap
-    // sz + header
+    // confirm our request to increment the heap, sz + header
     auto req{sbrk(static_cast<intptr_t>(sz + sizeof(alloc_t)))};
-    if (req == (void*) -1)
-        return nullptr;
+    if (req == (void*) -1) // could not find
+        throw std::bad_alloc();
 
     auto* blk{static_cast<alloc_t*>(req)};
     blk->addr_ = static_cast<char*>(req) + sizeof(alloc_t); // skip header
     blk->size_ = sz;
-    blk->magic_ = MAGIC_V;
-
+    blk->flag_ = bb::flag::USED;
     blk_free.push_back(blk);
 
     return static_cast<T*>(blk->addr_);
@@ -71,14 +71,13 @@ void dealloc(void* ptr) {
         return;
 
     auto* blk{(static_cast<alloc_t*>(ptr)) - 1}; // get the header block
-
     // could use assert
-    if (blk->magic_ != bb::MAGIC_V)
-        throw dealloc_error("bb::dealloc: Error: Invalid ptr!");
+    if (blk->flag_ != bb::flag::USED)
+        throw bb::bad_dealloc();
     if (blk->addr_ != ptr)
-        throw dealloc_error("bb::dealloc: Error: Invalid addr!");
+        throw bb::bad_dealloc();
 
-    blk->magic_ = 0; // invalidate magic
+    blk->flag_ = bb::flag::UNUSED; // invalidate magic
     blk_used.remove(blk);
     blk_free.push_back(blk);
 }
