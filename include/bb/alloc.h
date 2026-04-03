@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <ranges>
 #include <list>
+#include <stdexcept>
 
 #include <unistd.h>
 
@@ -10,6 +11,12 @@ struct alloc_t {
     void* addr_{};
     size_t size_{};
     int magic_{};
+};
+
+class dealloc_error : std::runtime_error {
+public:
+    dealloc_error(const char* what) :
+        std::runtime_error(what) {}
 };
 
 static constexpr int MAGIC_V{69420};
@@ -40,7 +47,7 @@ static T* req_space(size_t sz) {
         return nullptr;
 
     auto* blk = (alloc_t*) req;
-    blk->addr_ = req + sizeof(alloc_t); // skip header
+    blk->addr_ = (alloc_t*) req + sizeof(alloc_t); // skip header
     blk->size_ = sz;
     blk->magic_ = MAGIC_V;
 
@@ -61,5 +68,16 @@ T* alloc() {
 void dealloc(void* ptr) {
     if (!ptr)
         return;
+
+    auto* blk{((alloc_t*) ptr) - 1}; // get the header block
+
+    if (blk->magic_ != bb::MAGIC_V)
+        throw dealloc_error("bb::dealloc: Error: Invalid ptr!");
+    if (blk->addr_ != ptr)
+        throw dealloc_error("bb::dealloc: Error: Invalid addr!");
+
+    blk->magic_ = 0; // invalidate magic
+    blk_used.remove(blk);
+    blk_free.push_back(blk);
 }
 } // namespace bb
