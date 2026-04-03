@@ -43,11 +43,11 @@ template<typename T>
 static T* req_space(size_t sz) {
     // confirm our request to increment the heap
     // sz + header
-    auto req = sbrk((intptr_t) (sz + sizeof(alloc_t)));
+    auto req{sbrk(static_cast<intptr_t>(sz + sizeof(alloc_t)))};
     if (req == (void*) -1)
         return nullptr;
 
-    auto* blk = (alloc_t*) req;
+    auto* blk{static_cast<alloc_t*>(req)};
     blk->addr_ = static_cast<char*>(req) + sizeof(alloc_t); // skip header
     blk->size_ = sz;
     blk->magic_ = MAGIC_V;
@@ -70,7 +70,7 @@ void dealloc(void* ptr) {
     if (!ptr)
         return;
 
-    auto* blk{((alloc_t*) ptr) - 1}; // get the header block
+    auto* blk{(static_cast<alloc_t*>(ptr)) - 1}; // get the header block
 
     // could use assert
     if (blk->magic_ != bb::MAGIC_V)
