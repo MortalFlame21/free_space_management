@@ -2,6 +2,7 @@
 #include <ranges>
 #include <list>
 #include <stdexcept>
+#include <cassert>
 
 #include <unistd.h>
 
@@ -47,7 +48,7 @@ static T* req_space(size_t sz) {
         return nullptr;
 
     auto* blk = (alloc_t*) req;
-    blk->addr_ = (alloc_t*) req + sizeof(alloc_t); // skip header
+    blk->addr_ = static_cast<char*>(req) + sizeof(alloc_t); // skip header
     blk->size_ = sz;
     blk->magic_ = MAGIC_V;
 
@@ -71,6 +72,7 @@ void dealloc(void* ptr) {
 
     auto* blk{((alloc_t*) ptr) - 1}; // get the header block
 
+    // could use assert
     if (blk->magic_ != bb::MAGIC_V)
         throw dealloc_error("bb::dealloc: Error: Invalid ptr!");
     if (blk->addr_ != ptr)
