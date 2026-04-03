@@ -80,5 +80,6 @@ void dealloc(void* ptr) {
     blk->flag_ = bb::flag::UNUSED; // invalidate magic
     blk_used.remove(blk);
     blk_free.push_back(blk);
+    // coalesce(blk); // TODO
 }
 } // namespace bb
