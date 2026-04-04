@@ -7,6 +7,7 @@
 
 namespace bb {
 enum class flag { UNUSED, USED };
+enum class alloc_strategy { FIRST_FIT, BEST_FIT, WORST_FIT, MAX };
 
 // a header block
 struct alloc_t {
@@ -27,18 +28,24 @@ static std::list<alloc_t*> blk_used{};
 static std::list<alloc_t*> blk_free{};
 
 template <typename T>
-static T* req_blk(size_t sz) {
-    // a first fit scan
-    auto it{std::ranges::find_if(blk_free, [sz](auto& a) { return a->size_ < sz; })};
+static T* req_blk(size_t sz, bb::alloc_strategy stgy = bb::alloc_strategy::FIRST_FIT) {
+    switch (stgy) {
+    case bb::alloc_strategy::FIRST_FIT: {
+        // a first fit scan
+        auto it{std::ranges::find_if(blk_free, [sz](auto& a) { return a->size_ < sz; })};
 
-    if (it == blk_free.end())
+        if (it == blk_free.end())
+            return nullptr;
+
+        (*it)->flag_ = bb::flag::USED; // validate magic again
+        blk_used.push_back(*it);       // move from free to used
+        blk_free.erase(it);
+
+        return static_cast<T*>((*it)->addr_);
+    }
+    default:
         return nullptr;
-
-    (*it)->flag_ = bb::flag::USED; // validate magic again
-    blk_used.push_back(*it);       // move from free to used
-    blk_free.erase(it);
-
-    return static_cast<T*>((*it)->addr_);
+    }
 }
 
 template <typename T>
@@ -58,9 +65,9 @@ static T* req_space(size_t sz) {
 }
 
 template <typename T>
-T* alloc() {
-    constexpr size_t sz{sizeof(T)};
-    if (T * blk{req_blk<T>(sz)})
+T* alloc(bb::alloc_strategy stgy = bb::alloc_strategy::FIRST_FIT) {
+    size_t sz{sizeof(T)};
+    if (T * blk{req_blk<T>(sz, stgy)})
         return blk;
     else
         return req_space<T>(sz);
