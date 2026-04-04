@@ -29,6 +29,20 @@ public:
 static std::list<alloc_t*> blk_used{};
 static std::list<alloc_t*> blk_free{};
 
+// other helper
+const char* to_string(bb::alloc_strategy s) {
+    switch (s) {
+    case bb::alloc_strategy::FIRST_FIT:
+        return "first fit";
+    case bb::alloc_strategy::BEST_FIT:
+        return "best fit";
+    case bb::alloc_strategy::WORST_FIT:
+        return "worst fit";
+    default:
+        return "unknown";
+    }
+}
+
 // allocation strategies
 template <typename T>
 static T* first_fit(size_t sz) {
