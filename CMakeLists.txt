@@ -5,4 +5,4 @@ set(CMAKE_CXX_STANDARD 20)
 
 include_directories(${CMAKE_SOURCE_DIR}/include)
 
-add_executable(mem_allocation src/main.cpp)
+add_executable(mem_allocation src/main.cpp src/allocator.cpp)
