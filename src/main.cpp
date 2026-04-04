@@ -3,6 +3,7 @@
 #include <iostream>
 #include <random>
 #include <ranges>
+#include <stack>
 #include <vector>
 
 #include "bb/alloc.h"
@@ -10,11 +11,14 @@
 namespace cno = std::chrono;
 using clk = std::chrono::steady_clock;
 
-void run(int num_allocs, int num_deallocs);
-void print_strategy(bb::alloc_strategy s, clk::time_point t0, clk::time_point t1);
+enum class instruction { ALLOC, DEALLOC };
 
 std::random_device rd{};
 std::mt19937 mt{rd()};
+
+void run(int num_allocs, int num_deallocs);
+void run_strategy(bb::alloc_strategy s, const std::vector<instruction>& calls);
+void print_strategy(bb::alloc_strategy s, clk::time_point t0, clk::time_point t1);
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
@@ -40,23 +44,44 @@ void run(int num_allocs, int num_deallocs) {
     namespace rng = std::ranges;
     using stgy = bb::alloc_strategy;
 
+    std::vector<instruction> calls(num_allocs + num_deallocs, instruction::ALLOC);
+    rng::fill_n(calls.begin(), num_deallocs, instruction::DEALLOC);
+    rng::shuffle(calls, mt);
+
     for (int s{}; s < static_cast<int>(stgy::MAX); ++s) {
-        std::vector<int*> allocations(num_allocs, {});
         auto strategy{static_cast<stgy>(s)};
         auto t0{clk::now()};
 
-        for (auto& ptr : allocations) {
-            ptr = bb::alloc<int>(strategy);
-            *ptr = mt();
-        }
-
-        rng::shuffle(allocations, mt);
-
-        for (int i{}; i < num_deallocs; ++i) {
-            bb::dealloc(allocations[i]);
-        }
+        run_strategy(strategy, calls);
 
         print_strategy(strategy, t0, clk::now());
+    }
+}
+
+void run_strategy(bb::alloc_strategy s, const std::vector<instruction>& calls) {
+    std::stack<int*> alloc_st{};
+    for (auto& c : calls) {
+        try {
+            switch (c) {
+            case instruction::ALLOC:
+                alloc_st.push(bb::alloc<int>(s));
+                break;
+            case instruction::DEALLOC:
+                if (alloc_st.empty()) // just throw
+                    throw bb::bad_dealloc();
+
+                bb::dealloc(alloc_st.top());
+                alloc_st.pop();
+                break;
+            default:
+                break;
+            }
+        } catch (bb::bad_dealloc& e) {
+            std::cerr << "caught: " << e.what() << '\n'
+                      << "\tlikely double free. continuing.\n";
+        } catch (std::exception& e) {
+            throw; // rethrow the likely std::bad_alloc
+        }
     }
 }
 
