@@ -44,6 +44,7 @@ void run(int num_allocs, int num_deallocs) {
     namespace rng = std::ranges;
     using stgy = bb::alloc_strategy;
 
+    // being randomised we should double check for valid deallocs.
     std::vector<instruction> calls(num_allocs + num_deallocs, instruction::ALLOC);
     rng::fill_n(calls.begin(), num_deallocs, instruction::DEALLOC);
     rng::shuffle(calls, mt);
