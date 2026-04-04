@@ -6,7 +6,7 @@
 #include <stack>
 #include <vector>
 
-#include "bb/alloc.h"
+#include "allocator.h"
 
 namespace cno = std::chrono;
 using clk = std::chrono::steady_clock;
@@ -17,8 +17,8 @@ std::random_device rd{};
 std::mt19937 mt{rd()};
 
 void run(int num_allocs, int num_deallocs);
-void run_strategy(bb::alloc_strategy s, const std::vector<instruction>& calls);
-void print_strategy(bb::alloc_strategy s, clk::time_point t0, clk::time_point t1);
+void run_strategy(allocator::strategy s, const std::vector<instruction>& calls);
+void print_strategy(allocator::strategy s, clk::time_point t0, clk::time_point t1);
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
 
 void run(int num_allocs, int num_deallocs) {
     namespace rng = std::ranges;
-    using stgy = bb::alloc_strategy;
+    using stgy = allocator::strategy;
 
     // being randomised we should double check for valid deallocs.
     std::vector<instruction> calls(num_allocs + num_deallocs, instruction::ALLOC);
@@ -59,25 +59,26 @@ void run(int num_allocs, int num_deallocs) {
     }
 }
 
-void run_strategy(bb::alloc_strategy s, const std::vector<instruction>& calls) {
+void run_strategy(allocator::strategy s, const std::vector<instruction>& calls) {
     std::stack<int*> alloc_st{};
+    allocator a(s);
     for (auto& c : calls) {
         try {
             switch (c) {
             case instruction::ALLOC:
-                alloc_st.push(bb::alloc<int>(s));
+                alloc_st.push(a.alloc<int>());
                 break;
             case instruction::DEALLOC:
                 if (alloc_st.empty()) // just throw
-                    throw bb::bad_dealloc();
+                    throw allocator::bad_dealloc();
 
-                bb::dealloc(alloc_st.top());
+                a.dealloc(alloc_st.top());
                 alloc_st.pop();
                 break;
             default:
                 break;
             }
-        } catch (bb::bad_dealloc& e) {
+        } catch (allocator::bad_dealloc& e) {
             std::cerr << "caught: " << e.what() << '\n'
                       << "\tlikely double free. continuing.\n";
         } catch (std::exception& e) {
@@ -87,9 +88,9 @@ void run_strategy(bb::alloc_strategy s, const std::vector<instruction>& calls) {
 }
 
 // invariant t0 < t1, we assume this
-void print_strategy(bb::alloc_strategy s, clk::time_point t0, clk::time_point t1) {
+void print_strategy(allocator::strategy s, clk::time_point t0, clk::time_point t1) {
     auto d{t0 - t1};
-    std::cout << bb::to_string(s) << '\n'
+    std::cout << allocator::to_string(s) << '\n'
               << '\t' << cno::duration_cast<cno::nanoseconds>(d) << '\n'
               << '\t' << cno::duration_cast<cno::microseconds>(d) << '\n'
               << '\t' << cno::duration_cast<cno::milliseconds>(d) << '\n'
