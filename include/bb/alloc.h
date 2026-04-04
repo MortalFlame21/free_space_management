@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 namespace bb {
+// enums, structs/classes and constants
 enum class flag { UNUSED, USED };
 enum class alloc_strategy { FIRST_FIT, BEST_FIT, WORST_FIT, MAX };
 
@@ -16,6 +17,7 @@ struct alloc_t {
     flag flag_{};
 };
 
+// a copy of std::bad_alloc
 class bad_dealloc : std::exception {
 public:
     bad_dealloc() {}
@@ -27,22 +29,42 @@ public:
 static std::list<alloc_t*> blk_used{};
 static std::list<alloc_t*> blk_free{};
 
+// allocation strategies
+template <typename T>
+static T* first_fit(size_t sz) {
+    // a first fit scan
+    auto it{std::ranges::find_if(blk_free, [sz](auto& a) { return a->size_ < sz; })};
+
+    if (it == blk_free.end())
+        return nullptr;
+
+    (*it)->flag_ = bb::flag::USED; // validate magic again
+    blk_used.push_back(*it);       // move from free to used
+    blk_free.erase(it);
+
+    return static_cast<T*>((*it)->addr_);
+}
+
+template <typename T>
+static T* best_fit(size_t sz) {
+    return nullptr;
+}
+
+template <typename T>
+static T* worst_fit(size_t sz) {
+    return nullptr;
+}
+
+// allocation and deallocation auxilary
 template <typename T>
 static T* req_blk(size_t sz, bb::alloc_strategy stgy = bb::alloc_strategy::FIRST_FIT) {
     switch (stgy) {
-    case bb::alloc_strategy::FIRST_FIT: {
-        // a first fit scan
-        auto it{std::ranges::find_if(blk_free, [sz](auto& a) { return a->size_ < sz; })};
-
-        if (it == blk_free.end())
-            return nullptr;
-
-        (*it)->flag_ = bb::flag::USED; // validate magic again
-        blk_used.push_back(*it);       // move from free to used
-        blk_free.erase(it);
-
-        return static_cast<T*>((*it)->addr_);
-    }
+    case bb::alloc_strategy::FIRST_FIT:
+        return first_fit<T>(sz);
+    case bb::alloc_strategy::BEST_FIT:
+        return best_fit<T>(sz);
+    case bb::alloc_strategy::WORST_FIT:
+        return worst_fit<T>(sz);
     default:
         return nullptr;
     }
@@ -64,6 +86,7 @@ static T* req_space(size_t sz) {
     return static_cast<T*>(blk->addr_);
 }
 
+// allocation and deallocation core
 template <typename T>
 T* alloc(bb::alloc_strategy stgy = bb::alloc_strategy::FIRST_FIT) {
     size_t sz{sizeof(T)};
