@@ -6,7 +6,10 @@ This project includes a playground memory allocation functions, `T* alloc<T>()` 
 
 ## Assumptions
 
+- To give the varying strategies a fair measurement in time, we simply use a class,
+  `allocator`, which simply allows to reset the internal free list once destroyed. This allows for the strategy to start with a new free list. The destructor then places all left over free blocks to the global free list.
 - Instead of initialising some sort of linked list for the free list, we use `std::list<alloc_t>` as a way to track free blocks.
+- Coalescing of free blocks is not possible yet.
 - To grow the heap I use UNIX `sbrk`.
 
 ## Requirements
@@ -17,12 +20,12 @@ This project includes a playground memory allocation functions, `T* alloc<T>()` 
 
 ## Usage
 
-### `rand_allocs.cpp`
+### `main.cpp`
 
 ```shell
 cmake -S . -B build
 make -C ./build
-./build/mem_alloc <NUM_ALLOCATIONS> <NUM_DEALLOCATIONS>
+./build/memory_allocation <NUM_ALLOCATIONS> <NUM_DEALLOCATIONS>
 ```
 
 ### Memory allocation function usage
@@ -36,3 +39,7 @@ int main() {
     bb::dealloc(ptr); // free
 }
 ```
+
+## Limitations
+
+- Using `allocator` class after each strategy and having the assumption of having no free blocks in the free list per strategy, it is possible that there may not be any memory left over for another strategy to be used as all the free memory is within the global free list.
